@@ -143,3 +143,44 @@ def test_sce_soft_targets_sum_to_one(representations):
         targets.sum(dim=1),
         torch.ones(keys.shape[0]),
     )
+
+def test_sce_matches_manual_calculation():
+    import torch.nn.functional as F
+
+    queries = torch.tensor([[1.0, 0.0]])
+    keys = torch.tensor([[1.0, 0.0]])
+    queue = torch.tensor([
+        [0.0, 1.0],
+        [-1.0, 0.0],
+    ])
+
+    temperature = 0.2
+    target_temperature = 0.5
+    lambda_weight = 0.5
+
+    loss_fn = SCELoss(
+        temperature=temperature,
+        target_temperature=target_temperature,
+        lambda_weight=lambda_weight,
+    )
+
+    actual_loss = loss_fn(queries, keys, queue)
+
+    # Student similarities: [positive, queue item 1, queue item 2]
+    student_logits = torch.tensor([[1.0, 0.0, -1.0]]) / temperature
+
+    # Teacher relational similarities: only the queued representations
+    teacher_logits = torch.tensor([[0.0, -1.0]]) / target_temperature
+    queue_probs = F.softmax(teacher_logits, dim=1)
+
+    # Half the target mass goes to the positive pair.
+    targets = torch.cat([
+        torch.tensor([[lambda_weight]]),
+        (1.0 - lambda_weight) * queue_probs,
+    ], dim=1)
+
+    expected_loss = -(
+        targets * F.log_softmax(student_logits, dim=1)
+    ).sum(dim=1).mean()
+
+    assert torch.allclose(actual_loss, expected_loss, atol=1e-6)
