@@ -140,3 +140,20 @@ def test_sce_inference():
     assert output.embedding.shape == (2, 64)
     assert output.embedding.requires_grad is False
     assert model.queue.get().shape == (0, 32)
+
+def test_sce_multiview_input():
+    model = make_model()
+
+    batch = {
+        "views": [
+            {"image": torch.randn(2, 3, 32, 32)},
+            {"image": torch.randn(2, 3, 32, 32)},
+        ]
+    }
+
+    output = model(batch, stage="fit")
+
+    assert output.queries.shape == (2, 32)
+    assert output.keys.shape == (2, 32)
+    assert torch.isfinite(output.loss)
+    assert model.queue.get().shape == (0, 32)

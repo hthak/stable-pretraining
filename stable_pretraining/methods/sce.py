@@ -109,8 +109,19 @@ class SCE(Module):
 
         if isinstance(view1, dict):
             batch = view1
-            view1 = batch["view1"]
-            view2 = batch.get("view2")
+
+            if "views" in batch:
+                views = batch["views"]
+
+                if len(views) != 2:
+                    raise ValueError("SCE expects exactly two augmented views.")
+
+                view1 = views[0]["image"]
+                view2 = views[1]["image"]
+
+            else:
+                view1 = batch["view1"]
+                view2 = batch.get("view2")
 
         # Evaluation: extract a representation without training
         if view2 is None:
