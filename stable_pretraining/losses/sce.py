@@ -66,35 +66,28 @@ class SCELoss(nn.Module):
 
         '''Rather than treating all queued representations as equally incorrect targets,
         the momentum encoder measures their relative similarity'''
+        # Teacher similarities to stored queue representations
         relational_logits = keys @ queue.T
 
-        if queue.shape[0] == 0:
-            relational_probs = torch.zeros(
-                (keys.shape[0], 1),
-                device=keys.device,
-                dtype=keys.dtype,
-            )
-            relational_probs[:, 0] = 1.0
-        else:
-            queue_probs = F.softmax(
-                relational_logits / self.target_temperature,
-                dim=1,
-            )
+        # Algorithm 1: prepend a zero logit for the positive pair
+        positive_teacher_logits = torch.zeros(
+            (keys.shape[0], 1),
+            device=keys.device,
+            dtype=keys.dtype,
+        )
 
-            zero_positive = torch.zeros(
-                (keys.shape[0], 1),
-                device=keys.device,
-                dtype=keys.dtype,
-            )
+        teacher_logits = torch.cat(
+            [positive_teacher_logits, relational_logits],
+            dim=1,
+        )
 
-            relational_probs = torch.cat(
-                [zero_positive, queue_probs],
-                dim=1,
-            )
+        # Soft relational targets
+        relational_probs = F.softmax(
+            teacher_logits / self.target_temperature,
+            dim=1,
+        )
 
-        '''put into representations for positive and other queued targets'''
-
-        # Create the hard positive target
+        # Hard target: the positive match is at index 0
         hard_targets = torch.zeros_like(relational_probs)
         hard_targets[:, 0] = 1.0
 

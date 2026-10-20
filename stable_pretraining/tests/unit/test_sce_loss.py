@@ -166,18 +166,19 @@ def test_sce_matches_manual_calculation():
 
     actual_loss = loss_fn(queries, keys, queue)
 
-    # Student similarities: [positive, queue item 1, queue item 2]
+    # Student: positive similarity followed by queue similarities
     student_logits = torch.tensor([[1.0, 0.0, -1.0]]) / temperature
 
-    # Teacher relational similarities: only the queued representations
-    teacher_logits = torch.tensor([[0.0, -1.0]]) / target_temperature
-    queue_probs = F.softmax(teacher_logits, dim=1)
+    # Teacher: zero positive logit followed by queue similarities
+    teacher_logits = torch.tensor([[0.0, 0.0, -1.0]]) / target_temperature
+    relational_probs = F.softmax(teacher_logits, dim=1)
 
-    # Half the target mass goes to the positive pair.
-    targets = torch.cat([
-        torch.tensor([[lambda_weight]]),
-        (1.0 - lambda_weight) * queue_probs,
-    ], dim=1)
+    hard_targets = torch.tensor([[1.0, 0.0, 0.0]])
+
+    targets = (
+        lambda_weight * hard_targets
+        + (1.0 - lambda_weight) * relational_probs
+    )
 
     expected_loss = -(
         targets * F.log_softmax(student_logits, dim=1)
